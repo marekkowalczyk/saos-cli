@@ -8,6 +8,8 @@ CLI tool for searching the SAOS Polish court judgments database.
 saos          — the script (Python 3, no external deps)
 README.md     — usage docs
 LICENSE       — MIT
+dev/AAR.md    — after action reviews
+dev/NEXT-SESSION.md — next session notes
 ```
 
 ## Installation
