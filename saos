@@ -184,11 +184,23 @@ def main():
         parser.print_help()
         sys.exit(1)
 
-    # For 'law' subcommand, map positional 'law' arg to params correctly
+    # For 'law' subcommand, translate the journal code to a full-text query.
+    # The API's lawJournalEntryCode parameter rejects the 3-part year/no/entry
+    # format with HTTP 400, and the 2-part format returns near-zero results.
+    # Full-text search on the Dz.U. citation string is the reliable alternative.
     if args.command == "law":
         law_val = args.law
-        args.query = None
-        args.law = law_val
+        parts = law_val.split("/")
+        if len(parts) == 3:
+            year, no, entry = parts
+            query = f"Dz.U. {year} Nr {no} poz. {entry}"
+        elif len(parts) == 2:
+            year, no = parts
+            query = f"Dz.U. {year} Nr {no}"
+        else:
+            query = f"Dz.U. {law_val}"
+        args.query = query
+        args.law = None
 
     args.func(args)
 
