@@ -18,3 +18,17 @@ Continuous improvement log. Each session ends with a brief review: what went wel
 - Decide the repo name before creating any files in it
 - Test `saos judgment ID` immediately after writing `cmd_judgment`, not only after `search` is verified
 - When renaming a repo mid-session, open a new Claude Code session from the new path before continuing work
+
+## 2026-06-29 — Housekeeping: GitHub repo, gitignore, dev/ layout
+
+**What went well:**
+- `gh repo create` worked first try; push was clean
+- `.gitignore` pattern (ignore `.claude/` except `commands/`) is correct and idiomatic
+- Spotted and cleared the stale "set up GitHub remote" item from NEXT-SESSION before closing
+
+**What didn't go well:**
+- Ghost `saos/` directory required manual cleanup — carried-over friction from the previous session's rename
+- `dev/CLAUDE.md` detour: moved it there, then had to move it back — one unnecessary round-trip
+
+**What we'll do differently:**
+- Before reorganising files into subdirs, confirm which files are special (CLAUDE.md must stay at root) — decide once, not twice
