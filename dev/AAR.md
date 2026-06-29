@@ -2,6 +2,19 @@
 
 Continuous improvement log. Each session ends with a brief review: what went well, what didn't, what to change. This is the POOGI (Process Of Ongoing Improvement) record for this project.
 
+## 2026-06-29 — Fix saos law HTTP 400; add criminal procedure guidance to skill
+
+**What went well:**
+- Diagnosing `saos law` HTTP 400 from first principles (live curl probes) confirmed the root cause in minutes — the 3-part journal code format is rejected by the API; no guessing needed
+- Full-text Dz.U. citation workaround recovered 14,698 results vs. 5 before — an immediate, testable improvement
+- Checking the SAOS query language docs proactively turned a one-line observation (operators work passthrough) into a documented, usable feature in the skill
+
+**What didn't go well:**
+- README had a wrong `git clone` URL (`saos.git` instead of `saos-cli.git`) since the initial repo creation — caught only at close
+
+**What we'll do differently:**
+- On any rename or repo-creation session, verify the README clone URL before closing
+
 ## 2026-06-29 — Bootstrap session: saos CLI tool built from scratch
 
 **What went well:**

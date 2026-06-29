@@ -1,9 +1,9 @@
 # Next Session
 
 ## Completed last session
-- ~~Set up a GitHub remote for saos-cli~~ — live at https://github.com/marekkowalczyk/saos-cli
-- ~~Open the session from `~/repos/saos-cli/`~~ — confirmed, old `saos/` dir deleted
-- ~~Reorganise dev docs into `dev/`~~ — done; CLAUDE.md stays at root
+- ~~Fix `saos law` HTTP 400~~ — now translates journal code to full-text Dz.U. citation search
+- ~~Update `/saos` skill with criminal procedure quick-start and query operators~~ — done
+- ~~Fix README clone URL (`saos.git` → `saos-cli.git`)~~ — done
 
 ## Backlog
 - Consider adding `--json` output flag for piping into other tools

@@ -5,8 +5,8 @@ CLI search tool for [SAOS](https://www.saos.org.pl) — System Analizy Orzeczeń
 ## Installation
 
 ```bash
-git clone https://github.com/marekkowalczyk/saos.git
-ln -s "$PWD/saos/saos" /usr/local/bin/saos
+git clone https://github.com/marekkowalczyk/saos-cli.git
+ln -s "$PWD/saos-cli/saos" /usr/local/bin/saos
 ```
 
 Requires Python 3, no external dependencies.
@@ -44,7 +44,8 @@ saos search "zadośćuczynienie" --court SUPREME --size 5
 # Filter by judgment type and date range
 saos search "mobbing" --type SENTENCE --from 2020-01-01 --to 2024-12-31
 
-# Search by law journal entry
+# Search by law journal entry (Dz.U. year/no/position)
+# Translates to full-text search: "Dz.U. 1964 Nr 43 poz. 296"
 saos law "1964/43/296" --size 10
 
 # Filter by judge, common appeal courts only
@@ -53,6 +54,16 @@ saos search "odszkodowanie" --judge "Kowalski" --cc-court APPEAL
 # Fetch a single judgment by ID
 saos judgment 547779
 ```
+
+### Query operators
+
+The search phrase is passed verbatim to the SAOS full-text engine:
+
+| Operator | Example | Effect |
+|---|---|---|
+| Exact phrase | `"Jan Kowalski"` | Match words in order |
+| Exclusion | `zadośćuczynienie -odszkodowanie` | Exclude term |
+| OR | `mobbing OR dyskryminacja` | Either term |
 
 Output is Markdown.
 
