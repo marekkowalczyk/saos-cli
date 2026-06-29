@@ -1,0 +1,197 @@
+#!/usr/bin/env python3
+"""saos — CLI search tool for SAOS (System Analizy Orzeczeń Sądowych)
+Usage:
+  saos search "keyword" [options]
+  saos law "year/number" [options]
+  saos judgment ID
+  saos --help
+"""
+
+import argparse
+import json
+import re
+import sys
+import textwrap
+import urllib.error
+import urllib.parse
+import urllib.request
+
+BASE_URL = "https://www.saos.org.pl/api/search/judgments"
+JUDGMENT_URL = "https://www.saos.org.pl/api/judgments/{id}"
+
+COURT_TYPES = ["COMMON", "SUPREME", "CONSTITUTIONAL_TRIBUNAL", "NATIONAL_APPEAL_CHAMBER", "ADMINISTRATIVE"]
+CC_COURT_TYPES = ["APPEAL", "REGIONAL", "DISTRICT"]
+JUDGMENT_TYPES = ["DECISION", "RESOLUTION", "SENTENCE", "REGULATION", "REASONS"]
+SORTING_FIELDS = ["DATABASE_ID", "JUDGMENT_DATE", "REFERENCING_JUDGMENTS_COUNT", "MAXIMUM_MONEY_AMOUNT"]
+
+
+def fetch(url):
+    req = urllib.request.Request(url, headers={"Accept": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        print(f"saos: HTTP {e.code} {e.reason} — {url}", file=sys.stderr)
+        sys.exit(1)
+    except urllib.error.URLError as e:
+        print(f"saos: network error — {e.reason}", file=sys.stderr)
+        sys.exit(1)
+    except json.JSONDecodeError as e:
+        print(f"saos: invalid JSON from server — {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+def format_judgment(item, index=None, snippet_width=300):
+    prefix = f"### {index}. " if index is not None else "## "
+    case_nums = ", ".join(c["caseNumber"] for c in item.get("courtCases", []))
+    div = item.get("division", {})
+    court = (
+        div.get("court", {}).get("name", "")          # COMMON courts
+        or (div.get("chambers") or [{}])[0].get("name", "")  # SUPREME courts
+        or item.get("courtType", "")
+    )
+    division = div.get("name", "")
+    date = item.get("judgmentDate", "")
+    jtype = item.get("judgmentType", "")
+    jid = item.get("id", "")
+    href = f"https://www.saos.org.pl/judgment/{jid}" if jid else ""
+    keywords = ", ".join(item.get("keywords", []))
+
+    # Strip HTML; highlight search terms marked with <em>
+    snippet = item.get("textContent", "")
+    snippet = snippet.replace("<em>", "**").replace("</em>", "**")
+    snippet = re.sub(r"<[^>]+>", "", snippet)
+    snippet = re.sub(r"\s+", " ", snippet).strip()
+    if len(snippet) > snippet_width:
+        snippet = snippet[:snippet_width].rsplit(" ", 1)[0] + "…"
+
+    judges = [j["name"] for j in item.get("judges", [])]
+    judges_str = "; ".join(judges) if judges else ""
+
+    lines = [
+        f"{prefix}**{case_nums}** — {court}",
+        f"**Data:** {date}  |  **Typ:** {jtype}  |  **Wydział:** {division}",
+    ]
+    if judges_str:
+        lines.append(f"**Sędziowie:** {judges_str}")
+    if keywords:
+        lines.append(f"**Słowa kluczowe:** {keywords}")
+    if snippet:
+        lines.append(f"\n> {snippet}")
+    if href:
+        lines.append(f"\n[Pełna treść]({href})")
+    return "\n".join(lines)
+
+
+def cmd_search(args):
+    params = {
+        "pageSize": args.size,
+        "pageNumber": args.page,
+        "sortingField": args.sort,
+        "sortingDirection": args.direction,
+    }
+    if args.query:
+        params["all"] = args.query
+    if args.court:
+        params["courtType"] = args.court
+    if args.cc_court:
+        params["ccCourtType"] = args.cc_court
+    if args.law:
+        params["lawJournalEntryCode"] = args.law
+    if args.judge:
+        params["judgeName"] = args.judge
+    if args.case:
+        params["caseNumber"] = args.case
+    if args.type:
+        params["judgmentTypes"] = args.type
+    if args.date_from:
+        params["judgmentDateFrom"] = args.date_from
+    if args.date_to:
+        params["judgmentDateTo"] = args.date_to
+
+    url = BASE_URL + "?" + urllib.parse.urlencode(params)
+    data = fetch(url)
+
+    items = data.get("items", [])
+    total = data.get("info", {}).get("totalResults", "?")
+    page = params["pageNumber"]
+    size = params["pageSize"]
+
+    print(f"# Wyniki SAOS\n")
+    print(f"**Zapytanie:** `{url}`")
+    print(f"**Wyniki:** {total} łącznie | strona {page}, {size} na stronę\n")
+    print("---\n")
+
+    if not items:
+        print("_Brak wyników._")
+        return
+
+    for i, item in enumerate(items, start=page * size + 1):
+        print(format_judgment(item, index=i))
+        print()
+
+
+def cmd_judgment(args):
+    url = JUDGMENT_URL.format(id=args.id)
+    resp = fetch(url)
+    data = resp.get("data", resp)  # single-judgment endpoint wraps in "data"
+    print(format_judgment(data, index=None, snippet_width=2000))
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Przeszukuj bazę orzeczeń SAOS",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=textwrap.dedent("""\
+            Przykłady:
+              saos search "zadośćuczynienie"
+              saos search "odszkodowanie" --court SUPREME --sort JUDGMENT_DATE --direction DESC
+              saos law "1964/43/296"
+              saos search "mobbing" --type SENTENCE --from 2020-01-01 --size 20
+              saos judgment 547779
+        """),
+    )
+    sub = parser.add_subparsers(dest="command")
+
+    # search / law share the same handler; law is syntactic sugar
+    for cmd_name in ("search", "law"):
+        p = sub.add_parser(cmd_name, help=f"{'Szukaj po słowie kluczowym' if cmd_name == 'search' else 'Szukaj po numerze dziennika ustaw'}")
+        if cmd_name == "search":
+            p.add_argument("query", nargs="?", help="Słowa kluczowe")
+        else:
+            p.add_argument("law", help="Numer pozycji dziennika ustaw, np. 1964/43/296")
+        p.add_argument("--court", choices=COURT_TYPES, metavar="TYPE", help=f"Typ sądu: {', '.join(COURT_TYPES)}")
+        p.add_argument("--cc-court", choices=CC_COURT_TYPES, metavar="TYPE", help=f"Typ sądu powszechnego: {', '.join(CC_COURT_TYPES)}")
+        if cmd_name == "search":
+            p.add_argument("--law", dest="law", help="Numer pozycji dziennika ustaw")
+        p.add_argument("--judge", metavar="NAME", help="Nazwisko sędziego")
+        p.add_argument("--case", metavar="NUMBER", help="Sygnatura sprawy")
+        p.add_argument("--type", choices=JUDGMENT_TYPES, metavar="TYPE", help=f"Typ orzeczenia: {', '.join(JUDGMENT_TYPES)}")
+        p.add_argument("--from", dest="date_from", metavar="YYYY-MM-DD", help="Data od")
+        p.add_argument("--to", dest="date_to", metavar="YYYY-MM-DD", help="Data do")
+        p.add_argument("--size", type=int, default=10, metavar="N", help="Wyników na stronę (1-100, domyślnie 10)")
+        p.add_argument("--page", type=int, default=0, metavar="N", help="Numer strony (od 0)")
+        p.add_argument("--sort", default="JUDGMENT_DATE", choices=SORTING_FIELDS, help="Pole sortowania (domyślnie JUDGMENT_DATE)")
+        p.add_argument("--direction", default="DESC", choices=["ASC", "DESC"], help="Kierunek sortowania (domyślnie DESC)")
+        p.set_defaults(func=cmd_search)
+
+    j = sub.add_parser("judgment", help="Pobierz orzeczenie po ID")
+    j.add_argument("id", help="ID orzeczenia (liczba)")
+    j.set_defaults(func=cmd_judgment)
+
+    args = parser.parse_args()
+    if not args.command:
+        parser.print_help()
+        sys.exit(1)
+
+    # For 'law' subcommand, map positional 'law' arg to params correctly
+    if args.command == "law":
+        law_val = args.law
+        args.query = None
+        args.law = law_val
+
+    args.func(args)
+
+
+if __name__ == "__main__":
+    main()
